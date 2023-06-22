@@ -1,0 +1,56 @@
+version: "3.7"
+
+services:
+  flask:
+    tty: true
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: flask
+    ports:
+      - 8088:8088
+    volumes:
+      - .:/app
+      - ./src:/app/src
+    env_file: .env  
+    networks:
+      - b2-network
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: queue_consumer
+    command: 'python -u src/libraries/consumer.py'
+    env_file: .env
+    networks:
+      - b2-network
+  celery:
+    build:
+        context: .
+        dockerfile: Dockerfile
+    ports:
+      - 8089:8089
+    volumes:
+      - .:/app
+      - ./src:/app/src
+    command: 'celery -A app.celery_app worker -B --loglevel=info'
+    env_file: .env  
+    networks:
+      - b2-network
+    depends_on:
+      - flask
+  flower:
+    build:
+        context: .
+        dockerfile: Dockerfile
+    ports:
+      - 8090:8090
+    volumes:
+      - .:/app
+    command: celery -A app.celery_app flower --port=8090 --basic_auth=admin:admin --broker=db+postgresql://postgres:123@postgres/flask --backend=db+postgresql://postgres:123@postgres/flask
+    depends_on:
+      - celery
+networks:
+  b2-network:
+    external:
+      name: b2-network
